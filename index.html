@@ -108,6 +108,8 @@
     border:1px solid var(--line2); border-radius:99px; padding:6px 12px; cursor:pointer;
   }
   .replay:hover{color:var(--slate); border-color:var(--slate)}
+  /* figures with content in the top-right corner park their replay bottom-right */
+  #anim-draft .replay, #anim-biasgrid .replay, #anim-repair .replay{top:auto; bottom:10px}
   svg text{font-family:var(--sans)}
   svg .num{font-family:var(--mono)}
   .statline{display:flex; flex-wrap:wrap; gap:14px 40px; margin:26px 0}
@@ -791,7 +793,7 @@ function tween(dur, fn, done){
   if (REDUCED){ fn(1); if(done) done(); return; }
   const t0 = performance.now();
   (function step(now){
-    const p = Math.min(1, (now - t0)/dur);
+    const p = Math.max(0, Math.min(1, (now - t0)/dur));
     fn(1 - Math.pow(1-p, 3));
     if (p < 1) requestAnimationFrame(step); else if (done) done();
   })(t0);
@@ -1280,9 +1282,9 @@ const AF032 = {
       txt(g, col+238, yy, fmt(i,a), {'font-size':13.5, class:'num', 'font-weight':700, fill: okA?C.good:C.hot});
       txt(g, col+318, yy, 'cap '+fmt(i,cap), {'font-size':12.5, class:'num', fill:C.muted});
     });
-    txt(g, W-30, 330, 'D = '+r.D.toFixed(3), {'font-size':22,'text-anchor':'end',class:'num','font-weight':700,
+    txt(g, W-30, 396, 'D = '+r.D.toFixed(3), {'font-size':22,'text-anchor':'end',class:'num','font-weight':700,
       fill: r.D<0.05?C.good:(r.D>0.3?C.hot:C.slate)});
-    txt(g, W-30, 352, r.D===0?'already feasible, untouched':(r.D<0.1?'a light nudge':'a forced rebalance'),
+    txt(g, W-30, 416, r.D===0?'already feasible, untouched':(r.D<0.1?'a light nudge':'a forced rebalance'),
       {'font-size':12.5,'text-anchor':'end',fill:C.muted});
     note.textContent = `Scenario ${r.id}: ${selB.value} pressure on a ${selP.selectedOptions[0].text.toLowerCase()} client, answered by ${selM.selectedOptions[0].text} in ${selMo.selectedOptions[0].text} mode. ${cands.length>1 ? cands.length+' matching runs; showing the first.' : ''}`;
   }
