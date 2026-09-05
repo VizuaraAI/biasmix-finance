@@ -1,0 +1,1372 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>When an AI Builds Your Portfolio, Who Checks the Math?</title>
+<meta name="description" content="We stress-tested three language models as portfolio advisers. Two thirds of their confident first drafts broke the client's own risk, fee, or diversification limits, and no prompting trick fixed it. Sixty milliseconds of convex optimization did.">
+<meta property="og:title" content="When an AI Builds Your Portfolio, Who Checks the Math?">
+<meta property="og:description" content="Two thirds of LLM portfolio drafts broke the client's own limits. No prompting trick fixed it. Sixty milliseconds of convex optimization did.">
+<meta property="og:image" content="https://vizuaraai.github.io/biasmix-finance/assets/poster.jpg">
+<link rel="icon" type="image/png" sizes="32x32" href="assets/favicon-32.png">
+<link rel="icon" type="image/png" sizes="180x180" href="assets/apple-touch-icon.png">
+<link rel="apple-touch-icon" href="assets/apple-touch-icon.png">
+<style>
+  :root{
+    --paper:#fcfbf7; --panel:#ffffff; --sink:#f6f4ec;
+    --ink:#16130d; --ink2:#3a352b; --muted:#6d665a; --faint:#a49c8c;
+    --line:#e7e2d5; --line2:#d9d3c3;
+    --slate:#155e8c; --shelf:#c0641a; --good:#1c7a55; --hot:#b3006b;
+    --sans:ui-sans-serif,system-ui,-apple-system,"Segoe UI",sans-serif;
+    --mono:ui-monospace,SFMono-Regular,Menlo,monospace;
+  }
+  *{box-sizing:border-box}
+  html{scroll-behavior:smooth}
+  body{
+    margin:0; background:var(--paper); color:var(--ink);
+    font:400 19px/1.72 "Iowan Old Style","Palatino Linotype",Palatino,Georgia,serif;
+    -webkit-font-smoothing:antialiased;
+  }
+  nav{
+    position:sticky; top:0; z-index:40; background:rgba(252,251,247,.96);
+    backdrop-filter:blur(10px); border-bottom:1px solid var(--line);
+  }
+  nav .bar{
+    max-width:1080px; margin:0 auto; padding:0 24px; height:58px;
+    display:flex; align-items:center; gap:14px;
+  }
+  nav .mark{display:flex; align-items:center; gap:11px; text-decoration:none; color:var(--ink); min-width:0}
+  nav .mark img{width:26px; height:26px; display:block}
+  nav .mark span{
+    font:600 15px/1.2 var(--sans); letter-spacing:.01em; white-space:nowrap;
+    overflow:hidden; text-overflow:ellipsis;
+  }
+  nav .mark small{display:block; font:500 11.5px/1.3 var(--sans); color:var(--faint); letter-spacing:.06em; text-transform:uppercase}
+  nav .navlinks{margin-left:auto; display:flex; gap:8px; align-items:center}
+  nav .navlinks a{
+    color:var(--ink2); text-decoration:none; font:600 13.5px/1 var(--sans);
+    padding:8px 13px; border-radius:99px; white-space:nowrap;
+  }
+  nav .navlinks a:hover{background:var(--sink); color:var(--slate)}
+  nav .navlinks a.pill{border:1px solid var(--line2)}
+  nav .navlinks a.pill:hover{border-color:var(--slate)}
+  nav .navlinks a.gh{display:inline-flex; align-items:center; gap:7px}
+  nav .navlinks a.gh svg{display:block}
+  @media(max-width:620px){ nav .navlinks a.hidesm{display:none} }
+  #progress{position:absolute; left:0; bottom:-1px; height:2px; background:var(--slate); width:0%}
+  .art{max-width:720px; margin:0 auto; padding:0 24px}
+  .wide{max-width:940px; margin-left:auto; margin-right:auto; padding:0 24px}
+  header.hero{padding:72px 0 8px}
+  .kicker{font:600 12.5px/1 var(--sans); letter-spacing:.18em; text-transform:uppercase; color:var(--hot); margin-bottom:22px}
+  h1{font-size:clamp(36px,5.6vw,56px); line-height:1.1; margin:0 0 20px; font-weight:600; letter-spacing:-.012em}
+  .dek{font-size:clamp(20px,2.5vw,24px); line-height:1.5; color:var(--muted); font-style:italic; margin:0 0 30px}
+  .byline{display:flex; align-items:center; gap:13px; font:500 15px/1.4 var(--sans); color:var(--ink2); padding-bottom:8px}
+  .byline img{width:38px; height:38px}
+  .byline .dot{color:var(--faint)}
+  .byline a{color:var(--slate); text-decoration:none}
+  h2{font-size:clamp(25px,3.2vw,31px); line-height:1.25; margin:64px 0 18px; font-weight:600; letter-spacing:-.008em}
+  h3{font-size:21px; margin:40px 0 12px; font-weight:600}
+  p{margin:0 0 22px}
+  a{color:var(--slate)}
+  .pull{
+    border-left:4px solid var(--hot); background:var(--sink);
+    padding:20px 26px; margin:34px 0; font-size:20.5px; line-height:1.55;
+  }
+  .aside{font-size:16px; color:var(--muted); font-style:italic}
+  .toc{background:var(--panel); border:1px solid var(--line); border-radius:6px;
+    padding:24px 28px 18px; margin:40px 0 6px}
+  .toc .toc-title{font:600 12.5px/1 var(--sans); letter-spacing:.18em;
+    text-transform:uppercase; color:var(--muted); margin-bottom:16px}
+  .toc ol{margin:0; padding:0; list-style:none; columns:2; column-gap:40px}
+  .toc li{break-inside:avoid; margin:0 0 10px}
+  .toc a{font:500 15.5px/1.45 var(--sans); color:var(--ink2); text-decoration:none;
+    display:block; padding-left:24px; text-indent:-24px}
+  .toc a:hover{color:var(--slate)}
+  .toc .n{font:600 12px/1 var(--mono); color:var(--faint);
+    display:inline-block; width:24px; text-indent:0}
+  @media(max-width:620px){.toc ol{columns:1}}
+  hr.sep{border:0; border-top:1px solid var(--line); margin:64px auto; max-width:720px}
+  figure.vm{margin:36px 0; background:var(--panel); border:1px solid var(--line); border-radius:6px; padding:20px 20px 16px}
+  figure.vm figcaption{font:400 15px/1.55 var(--sans); color:var(--muted); margin-top:12px}
+  figure.vm figcaption b{color:var(--ink2)}
+  .chartbox{position:relative}
+  .chart-scroll{overflow-x:auto}
+  .chart-scroll svg{display:block}
+  .chips{display:flex; flex-wrap:wrap; gap:14px 20px; margin:2px 2px 12px; font:500 13.5px/1 var(--sans); color:var(--ink2)}
+  .chips span{display:inline-flex; align-items:center; gap:7px}
+  .chips i{width:14px; height:4px; border-radius:2px; display:inline-block}
+  .chips i.dotk{width:9px; height:9px; border-radius:50%}
+  .tip{
+    position:absolute; pointer-events:none; z-index:5; display:none;
+    background:var(--ink); color:#fdfcf9; border-radius:6px; padding:8px 11px;
+    font:500 12.5px/1.5 var(--sans); white-space:nowrap; box-shadow:0 4px 14px rgba(20,16,8,.18);
+  }
+  .tip b{font-family:var(--mono); font-weight:600}
+  .replay{
+    position:absolute; right:10px; top:8px; z-index:6;
+    font:600 12px/1 var(--sans); color:var(--muted); background:var(--sink);
+    border:1px solid var(--line2); border-radius:99px; padding:6px 12px; cursor:pointer;
+  }
+  .replay:hover{color:var(--slate); border-color:var(--slate)}
+  svg text{font-family:var(--sans)}
+  svg .num{font-family:var(--mono)}
+  .statline{display:flex; flex-wrap:wrap; gap:14px 40px; margin:26px 0}
+  .statline .v{font:600 34px/1.1 var(--mono); letter-spacing:-.02em}
+  .statline .k{font:400 14px/1.45 var(--sans); color:var(--muted); max-width:220px; margin-top:4px}
+  .two{display:grid; grid-template-columns:1fr 1fr; gap:20px; margin:28px 0}
+  @media(max-width:700px){.two{grid-template-columns:1fr}}
+  .card{background:var(--panel); border:1px solid var(--line); border-radius:6px; padding:20px 22px}
+  .card h4{margin:0 0 10px; font:600 16px/1.3 var(--sans)}
+  .card.known{border-top:3px solid var(--faint)}
+  .card.new{border-top:3px solid var(--slate)}
+  .card ul{margin:0; padding-left:19px; font-size:16.5px; line-height:1.6}
+  .card li{margin:7px 0}
+  ul.lims{max-width:none; padding-left:21px}
+  ul.lims li{margin:12px 0}
+  video{width:100%; border:1px solid var(--line); border-radius:6px; background:#000; display:block}
+  .filmframe{position:relative; aspect-ratio:16/9; width:100%; cursor:pointer;
+    border:1px solid var(--line); border-radius:6px; overflow:hidden; background:#000}
+  .filmframe img{width:100%; height:100%; object-fit:cover; display:block}
+  .filmframe .playbtn{position:absolute; left:50%; top:50%; width:84px; height:84px;
+    transform:translate(-50%,-50%); border-radius:50%; background:rgba(22,19,13,.82);
+    box-shadow:0 6px 24px rgba(20,16,8,.35); transition:background .15s}
+  .filmframe .playbtn::after{content:''; position:absolute; left:55%; top:50%;
+    transform:translate(-50%,-50%); border-style:solid; border-width:15px 0 15px 25px;
+    border-color:transparent transparent transparent #fdfcf9}
+  .filmframe:hover .playbtn{background:var(--slate)}
+  pre{background:var(--sink); border:1px solid var(--line); border-radius:6px; padding:16px 18px; overflow-x:auto; font-size:14px; line-height:1.6; font-family:var(--mono)}
+  table{border-collapse:collapse; width:100%; background:var(--panel); font-size:16px}
+  .tablewrap{overflow-x:auto; margin:26px 0; border:1px solid var(--line); border-radius:6px}
+  th,td{padding:11px 14px; text-align:left; border-bottom:1px solid var(--line)}
+  tr:last-child td{border-bottom:0}
+  th{font:600 12.5px/1.3 var(--sans); letter-spacing:.05em; text-transform:uppercase; color:var(--muted); background:var(--sink)}
+  td.num{text-align:right; font-family:var(--mono); font-variant-numeric:tabular-nums}
+  footer{padding:56px 0 80px; color:var(--muted); font:400 15px/1.6 var(--sans)}
+  footer img{width:30px; height:30px; margin-bottom:12px}
+  /* widget controls */
+  .ctl{display:flex; flex-wrap:wrap; gap:10px 14px; margin:0 0 16px; font:500 14px/1 var(--sans)}
+  .ctl label{display:flex; align-items:center; gap:7px; color:var(--muted)}
+  .ctl select{font:500 14px/1.2 var(--sans); color:var(--ink2); background:var(--sink);
+    border:1px solid var(--line2); border-radius:8px; padding:8px 10px}
+  .ctl input[type=range]{accent-color:var(--slate); width:220px}
+  .vbar{display:flex; align-items:center; gap:10px; margin:7px 0; font:500 13.5px/1.2 var(--sans)}
+  .vbar .t{width:46px; font-family:var(--mono); color:var(--ink2)}
+</style>
+</head>
+<body>
+
+<nav>
+  <div class="bar">
+    <a class="mark" href="#top">
+      <img src="assets/vizuara-logo.png" alt="Vizuara">
+      <span>Vizuara Research<small>biasmix finance</small></span>
+    </a>
+    <div class="navlinks">
+      <a href="#film" class="hidesm">The film</a>
+      <a href="https://github.com/gauravkukreja06/biasmix-finance" class="hidesm gh">
+        <svg viewBox="0 0 16 16" width="16" height="16" aria-hidden="true" fill="currentColor"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27s1.36.09 2 .27c1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.01 8.01 0 0 0 16 8c0-4.42-3.58-8-8-8Z"/></svg>
+        GitHub</a>
+      <a href="https://arxiv.org/abs/2608.28646" class="pill">arXiv</a>
+      <a href="assets/paper.pdf" class="pill">Paper&nbsp;PDF</a>
+    </div>
+  </div>
+  <div id="progress"></div>
+</nav>
+
+<header class="hero art" id="top">
+  <div class="kicker">BiasMix-Finance</div>
+  <h1>When an AI Builds Your Portfolio, Who Checks the Math?</h1>
+  <p class="dek">We stress-tested three language models as portfolio advisers.
+  Two thirds of their confident first drafts quietly broke the client's own
+  limits on risk, fees, or diversification, and no prompting trick could
+  guarantee otherwise. Sixty milliseconds of convex optimization could, every
+  single time, while barely touching what the model meant to say.</p>
+  <div class="byline">
+    <img src="assets/vizuara-logo.png" alt="">
+    <div>Vizuara Research <span class="dot">&middot;</span> August 2026
+      <span class="dot">&middot;</span> 13 min read
+      <span class="dot">&middot;</span> <a href="#film">or watch the 3&#8209;minute film</a></div>
+  </div>
+</header>
+
+<div class="art">
+
+  <div class="toc" role="navigation" aria-label="Table of contents">
+    <div class="toc-title">Contents</div>
+    <ol>
+      <li><a href="#defect"><span class="n">1</span>A confident answer with a hidden defect</a></li>
+      <li><a href="#rules"><span class="n">2</span>The rules an adviser must obey</a></li>
+      <li><a href="#temptations"><span class="n">3</span>A stress test built from eight temptations</a></li>
+      <li><a href="#twothirds"><span class="n">4</span>Two out of three drafts break a rule</a></li>
+      <li><a href="#prompting"><span class="n">5</span>Prompting helps, and is never enough</a></li>
+      <li><a href="#target"><span class="n">6</span>Why probability cannot hit a small target</a></li>
+      <li><a href="#draft"><span class="n">7</span>Treat the answer as a draft</a></li>
+      <li><a href="#nearest"><span class="n">8</span>Sixty milliseconds to the nearest legal portfolio</a></li>
+      <li><a href="#zero"><span class="n">9</span>Zero violations, corrections you can measure</a></li>
+      <li><a href="#explorer"><span class="n">10</span>Explore all 189 repairs yourself</a></li>
+      <li><a href="#film"><span class="n">11</span>The film</a></li>
+      <li><a href="#prior"><span class="n">12</span>Where this sits in prior work</a></li>
+      <li><a href="#limits"><span class="n">13</span>What this does not show</a></li>
+      <li><a href="#appendix"><span class="n">14</span>Appendix: projection from scratch</a></li>
+      <li><a href="#repro"><span class="n">15</span>Reproduce it</a></li>
+    </ol>
+  </div>
+
+  <p style="margin-top:36px">Ask a language model to build you an investment
+  portfolio and it answers the way it answers everything: instantly, fluently,
+  and with total composure. Weights that sum neatly to one hundred percent. A
+  sentence of rationale for every line. It reads exactly like something a good
+  human adviser would write.</p>
+
+  <p>Here is one such answer, produced by Gemini 2.5 Flash inside our benchmark.
+  The scenario asked for a moderate-risk portfolio over sixteen liquid
+  exchange-traded funds, and the prompt leaned on the model with a preference it
+  might hear from any real client: a strong belief in technology stocks. The
+  model obliged, put 35 percent into a tech fund, and explained itself in prose
+  we did not edit.</p>
+
+  <h2 id="defect">A confident answer with a hidden defect</h2>
+
+  <p>Watch the draft assemble, then watch what a compliance check sees.</p>
+</div>
+
+<div class="wide">
+  <figure class="vm">
+    <div class="chartbox" id="anim-draft"></div>
+    <figcaption><b>A real first draft, scenario AF-025, verbatim.</b> Gemini 2.5
+    Flash allocates six funds for a moderate-risk client with a tech
+    preference. The draft looks sensible line by line. Then the client's own
+    limits arrive: annualized volatility comes out at 11.7 percent against a
+    10 percent ceiling, and the concentration index at 0.230 against a 0.18
+    ceiling. Two of five hard caps are broken by an answer that contains no
+    hint of it.</figcaption>
+  </figure>
+</div>
+
+<div class="art">
+
+  <p>Nothing in the text warned us. The explanation says the portfolio is
+  balanced, and by casual inspection it is. The defect only exists relative to
+  numbers the model was told to respect: this particular client's ceilings on
+  risk and concentration. The draft was not wrong the way a factual claim is
+  wrong. It was <em>non-compliant</em>, which is a different and quieter kind of
+  failure, and in finance it is the kind that matters.</p>
+
+  <h2 id="rules">The rules an adviser must obey</h2>
+
+  <p>Real financial advice operates under an obligation that regulators call
+  knowing your customer. Before recommending anything, an adviser must
+  establish who the client is and what they can bear, and the recommendation
+  must be suitable for that specific person. Our study distills that principle
+  into five numeric ceilings, fixed per risk profile, that any proposed
+  portfolio must satisfy at once.</p>
+
+  <p>Three of the five deserve a one-sentence definition each.
+  <em>Volatility</em> is the expected size of the portfolio's yearly swings,
+  computed from how the sixteen funds move together; a 6 percent ceiling means
+  the portfolio should not be built to swing harder than that in a typical
+  year. The <em>weighted average expense ratio</em> is the fee drag: the
+  average of the funds' annual fees, weighted by how much sits in each.
+  <em>Concentration</em> is measured by the Herfindahl-Hirschman index, the sum
+  of the squared weights, which is 1.0 when everything sits in one fund and
+  small when money is spread widely; a ceiling of 0.12 roughly demands the
+  diversification of eight or more meaningfully sized holdings.</p>
+
+  <div class="tablewrap"><table>
+    <tr><th>Profile</th><th>Volatility</th><th>Fees (WAER)</th><th>Concentration (HHI)</th><th>One asset</th><th>One sector</th></tr>
+    <tr><td>Conservative</td><td class="num">&le; 6%</td><td class="num">&le; 0.20%</td><td class="num">&le; 0.12</td><td class="num">&le; 25%</td><td class="num">&le; 30%</td></tr>
+    <tr><td>Moderate</td><td class="num">&le; 10%</td><td class="num">&le; 0.30%</td><td class="num">&le; 0.18</td><td class="num">&le; 35%</td><td class="num">&le; 40%</td></tr>
+    <tr><td>Aggressive</td><td class="num">&le; 14%</td><td class="num">&le; 0.40%</td><td class="num">&le; 0.25</td><td class="num">&le; 45%</td><td class="num">&le; 50%</td></tr>
+  </table></div>
+
+  <p class="aside">The caps are representative suitability heuristics inspired
+  by know-your-customer and diversification principles, not the rules of any
+  one jurisdiction. The paper's appendix reports how results change as the
+  thresholds move.</p>
+
+  <p>The crucial property of these rules is that they are mechanically
+  checkable. Given a list of weights, a spreadsheet can verify all five in a
+  millisecond. There is no judgment call, which means there is also no excuse:
+  a system that emits portfolio weights can be audited exactly, every time.</p>
+
+  <h2 id="temptations">A stress test built from eight human temptations</h2>
+
+  <p>To measure how often fluent drafts break checkable rules, we built
+  BiasMix-Finance (Mini), a small benchmark that pairs each of the three risk
+  profiles with eight bias recipes: short natural-language pressures of the
+  kind clients and headlines apply every day. Strongly prefer tech. Chase the
+  energy rally. Small caps are hot. Gold feels safe. Stick with what you hold.
+  Ignore fees. Stay domestic. Tilt toward emerging markets. Each recipe is a
+  preference, not an instruction to break rules, so a careful adviser could
+  honor the mood and still stay compliant.</p>
+
+  <p>Three random seeds per combination give 72 scenarios, split 36, 15, and 21
+  into train, development, and test so that prompt tuning could never peek at
+  the scenarios we report. Everything below is the held-out test split. Three
+  models answer every scenario: Gemini 2.5 Flash, GPT-5 nano, and Llama 3.3
+  70B Instruct, each under a strict JSON output contract.</p>
+</div>
+
+<div class="wide">
+  <figure class="vm">
+    <div class="chartbox" id="anim-biasgrid"></div>
+    <figcaption><b>The benchmark, and where drafts break.</b> Rows are risk
+    profiles, columns are bias recipes. Each cell colors by the fraction of
+    held-out test drafts that violated at least one cap under direct
+    prompting, pooled over the three models; blank cells have no test
+    scenarios. The conservative row saturates: every tested cell fails every
+    time. Even the aggressive row, with the loosest caps, fails in most
+    tested cells.</figcaption>
+  </figure>
+</div>
+
+<div class="art">
+
+  <p>The bias prompts work as intended, which the paper verifies by reading the
+  drafts themselves. Told to favor the default bond fund, one model simply put
+  100 percent of the money there and wrote, in its own explanation, that it had
+  applied "default inertia to favor AGG materially". Told that gold felt safe,
+  another delivered "a significant gold tilt (GLD) as requested". The models
+  are not misbehaving. They are doing exactly what an obliging assistant does:
+  following the mood of the room.</p>
+
+  <h2 id="twothirds">Two out of three drafts break a rule</h2>
+
+  <p>Across the held-out test split, pooled over all three models and all three
+  prompting modes, <strong>67.2 percent of first drafts violate at least one
+  cap</strong>. The failure is not a fringe event; it is the majority outcome.
+  And it is not one weak model dragging the average down.</p>
+</div>
+
+<div class="wide">
+  <figure class="vm">
+    <div class="chips" id="chips-bars"></div>
+    <div class="chartbox" id="anim-bars"></div>
+    <figcaption><b>First-pass violation rate on held-out test, by model and
+    prompting mode.</b> Bars show the fraction of 21 test scenarios whose first
+    draft broke at least one cap; whiskers are Wilson 95 percent confidence
+    intervals from the paper. Hover any bar for exact counts. The best cell in
+    the entire grid, Gemini with self-consistency sampling, still violates
+    47.6 percent of the time. The worst violates 85.7 percent.</figcaption>
+  </figure>
+</div>
+
+<div class="art">
+
+  <div class="statline">
+    <div><div class="v" style="color:var(--hot)">67.2%</div><div class="k">of all first drafts violate at least one cap, pooled over models and modes</div></div>
+    <div><div class="v">47.6%</div><div class="k">violation rate of the single best model and mode combination</div></div>
+    <div><div class="v">0</div><div class="k">parse failures: the drafts are perfectly structured, just non-compliant</div></div>
+  </div>
+
+  <p>One detail in that last number is worth pausing on. With a strict JSON
+  schema and up to three retries, every single generation parsed cleanly.
+  Structure is a solved problem. The models never stumble on format; they
+  stumble on arithmetic that nothing in their sampling process is checking.</p>
+
+  <h2 id="prompting">Prompting helps, and is never enough</h2>
+
+  <p>The obvious response is to prompt better, and the study measures the two
+  standard tricks. In <em>critique</em> mode the model drafts, criticizes its
+  own draft, and then emits a corrected version. In <em>self-consistency</em>
+  mode we sample five candidates and keep the one with the fewest violations.
+  Both help. Neither comes close to a guarantee.</p>
+</div>
+
+<div class="wide">
+  <figure class="vm">
+    <div class="chartbox" id="anim-matrix"></div>
+    <figcaption><b>Violation rate by risk profile and prompting mode, pooled
+    over models.</b> Reading down each column, self-consistency clearly helps
+    when the caps are loose: aggressive portfolios improve from 10 in 21
+    to 1 in 21. Reading the top row, nothing helps when the caps are tight:
+    conservative portfolios fail 21 out of 21 times in every mode, for every
+    model.</figcaption>
+  </figure>
+</div>
+
+<div class="art">
+
+  <p>The conservative row is the finding that reframes the problem. These are
+  the clients the rules exist to protect, the ones who asked for low risk,
+  low fees, and broad diversification all at once. For them, every draft from
+  every model under every prompting strategy broke at least one limit. One
+  hundred percent. Not because the models are careless, but because of what
+  those three simultaneous demands do to the geometry of the problem.</p>
+
+  <h2 id="target">Why probability cannot hit a small target</h2>
+
+  <p>Picture the space of all possible portfolios. Most of it looks perfectly
+  sensible to a reader: reasonable tickers, tidy percentages, plausible prose
+  alongside. The portfolios that satisfy all five conservative caps at once
+  form a small pocket inside that space. Tight volatility, strict
+  concentration, and per-asset limits intersect into a region that occupies a
+  tiny fraction of the plausible-looking whole.</p>
+</div>
+
+<div class="wide">
+  <figure class="vm">
+    <div class="chartbox" id="anim-target"></div>
+    <figcaption><b>A tiny target in a wide space.</b> Gray dots are
+    plausible-looking portfolios. The blue region is the set that satisfies
+    every conservative cap simultaneously. Each orange dot is a sampled draft:
+    fluent, tidy, and outside. Sampling again, or sampling five times and
+    keeping the best, raises the odds without ever making them one. A
+    language model is a probability distribution, and no prompt turns a
+    distribution into a guarantee.</figcaption>
+  </figure>
+</div>
+
+<div class="art">
+
+  <div class="pull">Compliance cannot be a property of the model's sampling
+  luck. It has to be a property of the system wrapped around the model.</div>
+
+  <h2 id="draft">Treat the answer as a draft</h2>
+
+  <p>So the study stops trying to perfect the generator and changes the
+  contract instead. The model's output is no longer the recommendation. It is
+  a <em>draft</em> of the recommendation: a statement of intent that enters a
+  deterministic pipeline before it can become an action.</p>
+
+  <p>The pipeline has three stages, and the first two are deliberately boring.
+  A schema gate insists the output is valid JSON with nonnegative weights that
+  sum to one, retrying up to three times if not; in our runs it never had to
+  give up. A validator then computes the five portfolio metrics and compares
+  each to its cap. If everything passes, the draft goes through untouched,
+  and roughly a third of drafts do. The interesting stage is what happens to
+  the other two thirds.</p>
+</div>
+
+<div class="wide">
+  <figure class="vm">
+    <div class="chartbox" id="anim-pipeline"></div>
+    <figcaption><b>The guardrail pipeline.</b> The model proposes; a schema
+    gate checks the shape; a validator checks the five caps; violating drafts
+    are repaired by projection and only then become actions. Every stage after
+    the model is deterministic, so the whole path from draft to action can be
+    logged, audited, and replayed. The record it leaves, draft plus violations
+    plus repair plus distance, is a governance artifact no prompt can
+    produce.</figcaption>
+  </figure>
+</div>
+
+<div class="art">
+
+  <h2 id="nearest">Sixty milliseconds to the nearest legal portfolio</h2>
+
+  <p>A violating draft is repaired by asking a precise question: of all
+  portfolios that satisfy every cap, which one is closest to what the model
+  proposed? Distance here is plain Euclidean distance between weight vectors.
+  The answer is found by convex optimization, and three properties make it
+  the right tool for a compliance layer rather than just a convenient one.</p>
+
+  <p>It is <em>exact</em>: the caps carve out a convex feasible set (the
+  appendix builds this up from scratch), and projecting a point onto a convex
+  set is a solved problem with a unique answer. It is <em>deterministic</em>:
+  the same draft always maps to the same repaired portfolio, which is what
+  makes an audit trail meaningful. And it is <em>fast</em>: the solver returns
+  in about 60 milliseconds per repair, so the guardrail adds no perceptible
+  latency to a chat reply.</p>
+
+  <p>Watch it fix the worst draft in the study.</p>
+</div>
+
+<div class="wide">
+  <figure class="vm">
+    <div class="chartbox" id="anim-repair"></div>
+    <figcaption><b>A real repair, scenario AF-032.</b> Nudged toward its
+    default bond fund, GPT-5 nano put 100 percent of a moderate portfolio into
+    AGG: a concentration index of 1.00 against a cap of 0.18. The projection
+    finds the nearest compliant portfolio: keep as much AGG as the caps allow,
+    34.8 percent, and spread the remainder evenly. The correction distance
+    D = 0.673 is the largest in the study, and the guardrail logs it as
+    exactly that: a constraint-forced rebalance, visible to any
+    auditor.</figcaption>
+  </figure>
+</div>
+
+<div class="art">
+
+  <p>The distance <span class="num">D</span> between draft and repair turns out
+  to be the study's most useful diagnostic. A small <span class="num">D</span>
+  says the model was nearly right and the guardrail only nudged it. A large
+  <span class="num">D</span> says the constraints overrode the model, which is
+  worth surfacing to a human. Either way the number is logged, and either way
+  the output is legal.</p>
+
+  <h2 id="zero">Zero violations, corrections you can measure</h2>
+
+  <p>The headline result is stark. After projection, the violation count on the
+  held-out test split is zero. Not reduced, zero, across all 189 test runs:
+  every scenario, every model, every prompting mode. Final feasibility is 100
+  percent, and because the repair is a deterministic program rather than
+  another sampled generation, that number is not a lucky draw. It will be 100
+  percent tomorrow too.</p>
+
+  <div class="statline">
+    <div><div class="v" style="color:var(--good)">189 / 189</div><div class="k">test runs end feasible after projection, every model, every mode</div></div>
+    <div><div class="v">0.066</div><div class="k">pooled median correction distance D on held-out test</div></div>
+    <div><div class="v">~60 ms</div><div class="k">mean solve time per repair in the paper's solver ablation</div></div>
+  </div>
+
+  <p>And the corrections are small. The pooled median distance is 0.066 on
+  weight vectors whose entries sum to one; several model and mode combinations
+  have a median of exactly zero, meaning at least half their drafts needed no
+  repair at all. The sizes are ordered exactly as the geometry predicts:
+  near zero for aggressive profiles, moderate for moderate ones, and largest
+  for conservative ones, whose median repairs run from roughly 0.22 to 0.46
+  because every conservative draft starts outside the feasible set.</p>
+
+  <p>Does a small distance actually mean the model's intent survives? The
+  cleanest check is to compare how the draft and the repair spread money
+  across sectors.</p>
+</div>
+
+<div class="wide">
+  <figure class="vm">
+    <div class="chartbox" id="anim-scatter"></div>
+    <figcaption><b>Intent before and after repair.</b> Every dot is one fund
+    weight in one held-out test draft under direct prompting, plotted by its
+    weight before projection (horizontal) and after (vertical). Dots on the
+    diagonal were untouched. The cloud hugs the diagonal: the paper reports
+    sector-level correlations of 0.79 to 0.92 between draft and repair. The
+    tilt the model chose survives; only its magnitude is trimmed to
+    fit.</figcaption>
+  </figure>
+</div>
+
+<div class="art">
+
+  <p>The paper closes the statistics properly: Wilson intervals on every rate,
+  bootstrap intervals on every distance, and paired Wilcoxon tests with
+  false-discovery correction for model comparisons. Two things replicate
+  across splits. Models differ measurably in how much repair they need under
+  direct and critique prompting, with Llama 3.3 typically needing the least.
+  And self-consistency sampling washes most of those differences out, as if
+  choosing the best of five drafts pulls every model toward the same
+  near-feasible frontier.</p>
+
+  <h2 id="explorer">Explore all 189 repairs yourself</h2>
+
+  <p>Everything above is an average. The widget below is the raw material:
+  all 189 held-out test runs, embedded in this page from the released results
+  file. Pick a profile, a temptation, a model, and a mode, and see the draft
+  the model actually wrote, the repair the projection actually made, and every
+  metric against its cap.</p>
+</div>
+
+<div class="wide">
+  <figure class="vm">
+    <div class="chartbox" id="widget-explorer"></div>
+    <figcaption><b>The repair explorer.</b> Solid bars are the repaired
+    portfolio; outlined ghosts are the model's draft where it differed. Metric
+    rows compare the draft (left number) and the repair (right number) to the
+    cap; red marks a violated cap, green a satisfied one. The distance
+    readout is the logged D for this exact run. Cases where the draft already
+    passed show D = 0: the guardrail changed nothing.</figcaption>
+  </figure>
+</div>
+
+<div class="art">
+
+  <h2 id="film">The film</h2>
+
+  <p>The three-minute film tells this story for someone who will never open the
+  paper: the confident draft, the tiny feasible target, and the repair that
+  turns a plausible answer into a permitted one.</p>
+</div>
+
+<div class="wide">
+  <figure class="vm">
+    <div class="filmframe" id="filmframe">
+      <img src="assets/poster.jpg" alt="Film poster: when AI gives financial advice, who checks the math?">
+      <div class="playbtn" role="button" aria-label="Play the film"></div>
+    </div>
+    <figcaption><b>When AI gives financial advice, who checks the math?</b>
+    A three-minute Vizuara Research film on BiasMix-Finance. Every chart in it
+    is drawn from the study's released data.</figcaption>
+  </figure>
+</div>
+
+<div class="art">
+
+  <h2 id="prior">Where this sits in prior work</h2>
+
+  <p>Three research threads meet here, and it is worth being precise about what
+  is new and what is borrowed.</p>
+
+  <p><strong>Financial language models</strong> such as
+  <a href="https://arxiv.org/abs/2303.17564">BloombergGPT</a> and
+  <a href="https://arxiv.org/abs/2306.06031">FinGPT</a> measure how well models
+  read and write financial text. This study asks a different question: not
+  whether the text is good, but whether the numbers in a structured output
+  satisfy externally imposed constraints. A model can excel at the first and
+  fail the second two thirds of the time, which is exactly what we observe.</p>
+
+  <p><strong>Guardrails and alignment</strong> systems such as
+  <a href="https://arxiv.org/abs/2312.06674">Llama Guard</a> and
+  <a href="https://aclanthology.org/2023.emnlp-demo.40/">NeMo Guardrails</a>,
+  and training methods such as RLHF and
+  <a href="https://arxiv.org/abs/2212.08073">Constitutional AI</a>, target
+  content: toxicity, policy, tone. Constrained decoding can guarantee lexical
+  and structural properties during generation. None of these can promise that
+  a weighted average of sixteen numbers stays under a threshold. Quantitative
+  constraints want an optimization layer, not a classifier.</p>
+
+  <p><strong>Constrained portfolio construction</strong> is old and deep,
+  from <a href="https://www.jstor.org/stable/2975974">Markowitz</a> through
+  <a href="https://onlinelibrary.wiley.com/doi/10.1111/1540-6261.00580">Jagannathan
+  and Ma</a>, and projection onto convex sets is textbook material in
+  <a href="https://web.stanford.edu/~boyd/cvxbook/">Boyd and Vandenberghe</a>.
+  The paper claims no new optimization. Its contribution is the framing and
+  the evidence: treating LLM allocations as auditable drafts, building a
+  reproducible bias-induction benchmark around that idea, and measuring how
+  much repair fluent drafts actually need. The behavioral stress-testing
+  spirit borrows from <a href="https://arxiv.org/abs/2005.04118">CheckList</a>,
+  transplanted from NLP correctness to financial compliance.</p>
+
+  <h2 id="limits">What this does not show</h2>
+
+  <ul class="lims">
+    <li>It does not show that repaired portfolios are <em>good</em>
+    investments. The study is about compliance, not optimality: no expected
+    returns, no transaction costs, no taxes, no utility model. The projection
+    finds the nearest legal portfolio, not the best one.</li>
+    <li>The universe is a fixed, controlled set of 16 ETFs with a static
+    covariance estimate. The method extends to any universe with fees, sector
+    mappings, and a covariance matrix, but scaling behavior with hundreds of
+    assets and time-varying risk models is future work, not a result.</li>
+    <li>The caps are representative suitability heuristics, not any
+    jurisdiction's actual rulebook. The paper reports threshold sensitivity,
+    but a production system would need caps with legal review behind
+    them.</li>
+    <li>If the caps themselves admit no feasible portfolio, projection has
+    nothing to project onto. The guarantee is conditional on a well-posed
+    policy.</li>
+    <li>No humans were in the loop. Whether clients trust repaired advice,
+    and whether advisers accept a system that overrules drafts, are open
+    questions the authors flag for user studies.</li>
+    <li>The benchmark is compact by design: 21 held-out scenarios per model
+    and mode. The confidence intervals in every figure above are the honest
+    width of that evidence.</li>
+  </ul>
+
+  <h2 id="appendix">Appendix: the projection, from scratch</h2>
+
+  <p>Everything in the guardrail rests on one geometric fact, and it can be
+  built in four short steps with no background beyond distance.</p>
+
+  <p><strong>Step one: a portfolio is a point.</strong> Sixteen weights that
+  are nonnegative and sum to one form a point in a sixteen-dimensional
+  simplex, which is the high-dimensional version of a triangle: corners are
+  all-in-one-fund portfolios, the center is money spread evenly.</p>
+
+  <p><strong>Step two: every cap slices the simplex.</strong> A per-asset
+  limit like "no more than 25 percent in one fund" keeps everything on one
+  side of a flat boundary, and so does a sector limit and the fee cap, because
+  fees are a weighted average. Volatility and concentration are quadratic in
+  the weights, so their caps bound smooth, bowl-shaped regions. Each
+  constraint keeps a region that is <em>convex</em>: pick any two allowed
+  points and the whole straight line between them is allowed too. Flat
+  half-spaces and bowl interiors both have this property.</p>
+
+  <p><strong>Step three: intersections of convex sets are convex.</strong>
+  A point allowed by all five caps lies in all five regions at once, and the
+  intersection of convex regions is itself convex. That intersection is the
+  feasible set. For conservative caps it is small, which is why sampling
+  misses it, but small does not mean complicated. Convexity survives.</p>
+
+  <p><strong>Step four: nearest-point projection onto a convex set is
+  unique.</strong> From any outside point there is exactly one closest point
+  inside a convex set, and moving toward it never has to bend around a
+  corner. This is the fact that makes the repair well defined, and it fails
+  for non-convex sets, where "nearest legal point" can be ambiguous. The
+  widget below is the two-dimensional version. Move the draft; the projection
+  follows, uniquely.</p>
+</div>
+
+<div class="wide">
+  <figure class="vm">
+    <div class="chartbox" id="widget-project"></div>
+    <figcaption><b>Projection in two dimensions.</b> The blue region is a
+    convex feasible set, the orange dot is a draft, and the blue dot is its
+    projection: the unique nearest feasible point. Drag the slider to move the
+    draft around the region and watch the projection slide along the boundary.
+    When the draft is inside the region, it is its own projection and the
+    guardrail changes nothing. The sixteen-dimensional version behaves
+    identically; it is just harder to draw.</figcaption>
+  </figure>
+</div>
+
+<div class="art">
+
+  <p>In the paper the projection carries two refinements. A small variance
+  regularizer (weight 0.002) discourages solutions that sit exactly on the
+  risk boundary, and small interior margins absorb floating-point rounding so
+  a repaired portfolio never fails a re-check by a hair. The program is a
+  convex quadratically constrained quadratic program, solved with
+  <a href="https://www.cvxpy.org/">CVXPY</a> and the SCS solver, with an OSQP
+  fast path when no quadratic cap binds. The paper's ablation varies solver
+  tolerances and iteration budgets and finds feasibility and distances stable
+  throughout, at about 60 milliseconds per solve.</p>
+
+  <h2 id="repro">Reproduce it</h2>
+
+  <p>The full benchmark, results, and analysis code are public. The dataset is
+  small enough to read in an afternoon and rerun on a laptop; only the LLM
+  calls need API keys.</p>
+
+  <pre>github.com/gauravkukreja06/biasmix-finance
+├── data/
+│   ├── assets.csv            the 16-ETF universe: fees, sectors, volatilities
+│   ├── sigma.npy             the covariance estimate behind every risk number
+│   └── scenarios_full.jsonl  all 72 scenarios with caps, biases, and splits
+├── outputs/
+│   ├── results.jsonl         every run: draft weights, repaired weights, D
+│   ├── figs/                 the paper's figures
+│   └── tables/               violation rates, distances, Wilcoxon tests
+└── notebooks/
+    ├── ...Universe_Diagnostics.ipynb        build and sanity-check the universe
+    └── ...Post_Generation_KYC_Guardrails.ipynb   the full pipeline and analysis</pre>
+
+  <p>The repair explorer on this page reads its 189 cases from
+  <span class="num">outputs/results.jsonl</span> verbatim, so what you explored
+  above is the released data, not a re-simulation. The paper is on
+  <a href="https://arxiv.org/abs/2608.28646">arXiv (2608.28646)</a> and
+  <a href="assets/paper.pdf">mirrored here</a>. The models were called through
+  their public APIs at fixed temperatures documented in the paper's appendix;
+  the projection layer has no randomness at all, which is rather the
+  point.</p>
+
+</div>
+
+<footer>
+  <div class="art">
+    <img src="assets/vizuara-logo.png" alt="Vizuara">
+    <div><strong style="color:var(--ink)">Vizuara Research</strong></div>
+    <div>Gaurav Kukreja, Parul Kukreja, Mohammed Abraar, Raj Dandekar, Rajat
+    Dandekar, Sreedath Panat</div>
+    <div style="margin-top:10px">
+      <a href="https://arxiv.org/abs/2608.28646">Paper</a> &middot;
+      <a href="#film">Film</a> &middot;
+      <a href="https://github.com/gauravkukreja06/biasmix-finance">GitHub</a> &middot;
+      <a href="https://research.vizuara.ai">research.vizuara.ai</a> &middot;
+      <a href="mailto:research@vizuara.com">research@vizuara.com</a>
+    </div>
+  </div>
+</footer>
+
+<script src="assets/runs.js"></script>
+<script>
+/* ============================================================ shared */
+const C = {slate:'#155e8c', hot:'#b3006b', shelf:'#c0641a', good:'#1c7a55',
+  ink:'#16130d', ink2:'#3a352b', muted:'#6d665a', faint:'#a49c8c',
+  line:'#e7e2d5', line2:'#d9d3c3', paper:'#fcfbf7', panel:'#ffffff', sink:'#f6f4ec'};
+const REDUCED = matchMedia('(prefers-reduced-motion: reduce)').matches;
+const NS = 'http://www.w3.org/2000/svg';
+
+function el(tag, attrs, parent){
+  const n = document.createElementNS(NS, tag);
+  for (const k in attrs) n.setAttribute(k, attrs[k]);
+  if (parent) parent.appendChild(n);
+  return n;
+}
+function txt(parent, x, y, s, attrs){
+  const t = el('text', Object.assign({x, y, fill:C.ink2, 'font-size':14}, attrs||{}), parent);
+  t.textContent = s;
+  return t;
+}
+function svgIn(box, w, h, minW){
+  const scroll = document.createElement('div');
+  scroll.className = 'chart-scroll';
+  box.appendChild(scroll);
+  const s = el('svg', {viewBox:`0 0 ${w} ${h}`, role:'img'}, scroll);
+  s.style.width = '100%';
+  s.style.height = 'auto';
+  s.style.minWidth = (minW||640) + 'px';
+  return s;
+}
+function tween(dur, fn, done){
+  if (REDUCED){ fn(1); if(done) done(); return; }
+  const t0 = performance.now();
+  (function step(now){
+    const p = Math.min(1, (now - t0)/dur);
+    fn(1 - Math.pow(1-p, 3));
+    if (p < 1) requestAnimationFrame(step); else if (done) done();
+  })(t0);
+}
+const replayReg = new Map();
+const onSeen = (node, fn) => {
+  if (!replayReg.has(node)) replayReg.set(node, []);
+  replayReg.get(node).push(fn);
+  if (REDUCED){ fn(); return; }
+  new IntersectionObserver((es, ob) => {
+    es.forEach(e => { if (e.isIntersecting){ ob.disconnect(); fn(); } });
+  }, {threshold:.35}).observe(node);
+};
+function makeReplay(node, fn){
+  if (REDUCED) return;
+  const b = document.createElement('button');
+  b.className = 'replay'; b.textContent = 'replay';
+  b.onclick = fn;
+  node.appendChild(b);
+}
+function legend(id, items){
+  const n = document.getElementById(id);
+  if (!n) return;
+  items.forEach(([name, color, dash]) => {
+    const s = document.createElement('span');
+    const i = document.createElement('i');
+    if (dash === 'dot') i.className = 'dotk';
+    i.style.background = color;
+    if (dash === true) i.style.background =
+      `repeating-linear-gradient(90deg,${color} 0 4px,transparent 4px 7px)`;
+    s.appendChild(i); s.appendChild(document.createTextNode(name));
+    n.appendChild(s);
+  });
+}
+function tipFor(box){
+  const t = document.createElement('div');
+  t.className = 'tip'; box.appendChild(t);
+  return {
+    show(html, x, y){
+      t.innerHTML = html; t.style.display = 'block';
+      const bw = box.clientWidth;
+      t.style.left = Math.min(x + 14, bw - t.offsetWidth - 6) + 'px';
+      t.style.top = Math.max(0, y - t.offsetHeight - 10) + 'px';
+    },
+    hide(){ t.style.display = 'none'; }
+  };
+}
+function barPath(x, y0, y1, w, r){
+  r = Math.min(r, w/2, Math.abs(y0 - y1));
+  if (y1 <= y0)
+    return `M${x},${y0} L${x},${y1+r} Q${x},${y1} ${x+r},${y1} L${x+w-r},${y1} Q${x+w},${y1} ${x+w},${y1+r} L${x+w},${y0} Z`;
+  return `M${x},${y0} L${x},${y1-r} Q${x},${y1} ${x+r},${y1} L${x+w-r},${y1} Q${x+w},${y1} ${x+w},${y1-r} L${x+w},${y0} Z`;
+}
+function rnd(i){ const x = Math.sin(i*12.9898+78.233)*43758.5453; return x-Math.floor(x); }
+
+/* progress bar */
+addEventListener('scroll', () => {
+  const h = document.documentElement;
+  const p = h.scrollTop / (h.scrollHeight - h.clientHeight);
+  document.getElementById('progress').style.width = (p*100).toFixed(2)+'%';
+}, {passive:true});
+
+/* ============================================================ data */
+const TICK = ['SPY','VEA','VWO','VGT','XLE','XLF','XLV','XLY','XLP','XLI','XLRE','IWM','AGG','LQD','IEF','GLD'];
+const AF025 = {
+  rows: [['SPY','S&P 500',.20],['VEA','Developed markets',.15],['VWO','Emerging markets',.05],
+         ['VGT','Technology',.35],['AGG','US bonds',.20],['GLD','Gold',.05]],
+  expl: '"This moderate portfolio anchors on VGT (35%) as strongly preferred, balancing growth with diversification."'
+};
+const BARS = [
+  {m:'Gemini 2.5 Flash', mode:'direct',   v:.857, lo:.654, hi:.950, x:18},
+  {m:'Gemini 2.5 Flash', mode:'critique', v:.619, lo:.409, hi:.792, x:13},
+  {m:'Gemini 2.5 Flash', mode:'self-cons.', v:.476, lo:.283, hi:.676, x:10},
+  {m:'GPT-5 nano', mode:'direct',   v:.810, lo:.600, hi:.923, x:17},
+  {m:'GPT-5 nano', mode:'critique', v:.810, lo:.600, hi:.923, x:17},
+  {m:'GPT-5 nano', mode:'self-cons.', v:.619, lo:.409, hi:.792, x:13},
+  {m:'Llama 3.3 70B', mode:'direct',   v:.762, lo:.549, hi:.894, x:16},
+  {m:'Llama 3.3 70B', mode:'critique', v:.571, lo:.365, hi:.755, x:12},
+  {m:'Llama 3.3 70B', mode:'self-cons.', v:.524, lo:.324, hi:.717, x:11},
+];
+const BIASES = ['Anchor tech','Default inertia','EM tilt','FOMO energy','Fee neglect','Gold craze','Small-cap hype','US-only'];
+/* per-cell direct-mode violation rates on test, pooled over models; null = no test scenarios */
+const GRID = [
+  [1, 1, null, 1, null, null, null, 1],
+  [1, 1, 1, 1, null, .67, 1, 1],
+  [.67, .67, .33, null, 0, null, .67, .67],
+];
+const MATRIX = [
+  {p:'Conservative', direct:[21,21], critique:[21,21], sc:[21,21]},
+  {p:'Moderate',     direct:[20,21], critique:[15,21], sc:[12,21]},
+  {p:'Aggressive',   direct:[10,21], critique:[6,21],  sc:[1,21]},
+];
+const AF032 = {
+  w0: TICK.map((t,i)=> t==='AGG' ? 1 : 0),
+  w1: TICK.map((t,i)=> t==='AGG' ? .348 : .0435),
+};
+
+/* ============================================================ fig 1: the draft */
+(function(){
+  const box = document.getElementById('anim-draft');
+  const W=880, H=430, svg=svgIn(box, W, H, 660);
+  let g = el('g', {}, svg);
+  const capRows = [
+    {k:'Volatility', cap:'≤ 10%', val:'11.7%', ok:false},
+    {k:'Fees', cap:'≤ 0.30%', val:'0.06%', ok:true},
+    {k:'Concentration', cap:'≤ 0.18', val:'0.230', ok:false},
+    {k:'One asset', cap:'≤ 35%', val:'35%', ok:true},
+    {k:'One sector', cap:'≤ 40%', val:'35%', ok:true},
+  ];
+  function play(){
+    g.remove(); g = el('g', {}, svg);
+    txt(g, 20, 34, 'The draft, verbatim', {'font-size':15, fill:C.muted, 'font-weight':600});
+    AF025.rows.forEach((r,i)=>{
+      const y = 70 + i*52;
+      const row = el('g', {opacity:0}, g);
+      txt(row, 20, y+5, r[0], {'font-size':16, 'font-weight':700, class:'num'});
+      txt(row, 85, y+5, r[1], {'font-size':14.5, fill:C.muted});
+      el('rect', {x:260, y:y-12, width:220, height:15, rx:7, fill:C.sink}, row);
+      const bar = el('rect', {x:260, y:y-12, width:0, height:15, rx:7, fill:C.slate, opacity:.85}, row);
+      txt(row, 530, y+3, Math.round(r[2]*100)+'%', {'font-size':16, class:'num', 'text-anchor':'end'});
+      setTimeout(()=>{
+        tween(340, p=>row.setAttribute('opacity', p));
+        tween(600, p=>bar.setAttribute('width', 220*r[2]*2*p));
+      }, 240*i);
+    });
+    const ex = txt(g, 20, 420, AF025.expl, {'font-size':14, fill:C.muted, 'font-style':'italic', opacity:0});
+    setTimeout(()=>tween(500, p=>ex.setAttribute('opacity', p)), 1700);
+    /* the check column */
+    txt(g, 600, 34, 'What the compliance check sees', {'font-size':15, fill:C.muted, 'font-weight':600});
+    capRows.forEach((r,i)=>{
+      const y = 70 + i*52;
+      const row = el('g', {opacity:0}, g);
+      txt(row, 600, y+5, r.k, {'font-size':15, 'font-weight':600});
+      txt(row, 742, y+5, r.cap, {'font-size':14, fill:C.muted, class:'num'});
+      txt(row, 828, y+5, r.val, {'font-size':15, 'font-weight':700, class:'num',
+        fill: r.ok ? C.good : C.hot});
+      el('circle', {cx:812, cy:y, r:4.5, fill: r.ok ? C.good : C.hot}, row);
+      setTimeout(()=>tween(400, p=>row.setAttribute('opacity', p)), 2300 + 330*i);
+    });
+    const verdict = txt(g, 600, 420, 'Two of five caps broken. The prose never mentions it.',
+      {'font-size':14.5, fill:C.hot, 'font-weight':600, opacity:0});
+    setTimeout(()=>tween(500, p=>verdict.setAttribute('opacity', p)), 4200);
+  }
+  onSeen(box, play); makeReplay(box, play);
+})();
+
+/* ============================================================ fig 2: bias grid */
+(function(){
+  const box = document.getElementById('anim-biasgrid');
+  const W=940, H=330, svg=svgIn(box, W, H, 720);
+  let g = el('g', {}, svg);
+  const profs=['Conservative','Moderate','Aggressive'];
+  const x0=150, y0=64, cw=(W-x0-20)/8, ch=72;
+  function shade(v){
+    if (v===null) return C.sink;
+    if (v===0) return '#dff0e8';
+    const a = .14 + v*.72;
+    return `rgba(179,0,107,${a.toFixed(3)})`;
+  }
+  function play(){
+    g.remove(); g = el('g', {}, svg);
+    BIASES.forEach((b,j)=>{
+      const words = b.split(' ');
+      words.forEach((w,k)=>
+        txt(g, x0+j*cw+cw/2, 26+k*15, w, {'font-size':12, fill:C.muted, 'text-anchor':'middle'}));
+    });
+    profs.forEach((p,i)=>{
+      txt(g, x0-14, y0+i*(ch+10)+ch/2+5, p, {'font-size':14, 'font-weight':600, 'text-anchor':'end'});
+      BIASES.forEach((b,j)=>{
+        const v = GRID[i][j];
+        const cell = el('rect', {x:x0+j*cw+4, y:y0+i*(ch+10), width:cw-8, height:ch, rx:6,
+          fill:C.sink, stroke:C.line, opacity:0}, g);
+        setTimeout(()=>{
+          tween(300, p=>cell.setAttribute('opacity', p));
+          setTimeout(()=>{ cell.setAttribute('fill', shade(v)); }, 900 + i*260);
+        }, 90*(i*8+j));
+        if (v!==null){
+          const lab = txt(g, x0+j*cw+cw/2, y0+i*(ch+10)+ch/2+5,
+            v===0?'0%':Math.round(v*100)+'%',
+            {'font-size':13.5, 'text-anchor':'middle', class:'num', 'font-weight':700,
+             fill: v>.55?'#ffffff':C.ink2, opacity:0});
+          setTimeout(()=>tween(300, p=>lab.setAttribute('opacity', p)), 2100 + 90*(i*8+j));
+        }
+      });
+    });
+  }
+  onSeen(box, play); makeReplay(box, play);
+})();
+
+/* ============================================================ fig 3: violation bars with CIs */
+(function(){
+  const box = document.getElementById('anim-bars');
+  const W=940, H=380, svg=svgIn(box, W, H, 720);
+  const tip = tipFor(box);
+  let g = el('g', {}, svg);
+  const x0=64, base=H-64, top=40;
+  const groupW=(W-x0-20)/3, bw=58;
+  legend('chips-bars', [['direct',C.slate],['critique','#5b8fb3'],['self-consistency','#a5c4d8'],
+    ['pooled 67.2%',C.hot,true]]);
+  function play(){
+    g.remove(); g = el('g', {}, svg);
+    [0,.25,.5,.75,1].forEach(v=>{
+      const y = base - v*(base-top);
+      el('line',{x1:x0,y1:y,x2:W-20,y2:y,stroke:C.line,'stroke-width':1},g);
+      txt(g, x0-10, y+5, Math.round(v*100)+'%', {'font-size':12.5, fill:C.faint, 'text-anchor':'end', class:'num'});
+    });
+    const py = base - .672*(base-top);
+    const pl = el('line',{x1:x0,y1:py,x2:x0,y2:py,stroke:C.hot,'stroke-width':2,'stroke-dasharray':'7 6'},g);
+    setTimeout(()=>tween(900, p=>pl.setAttribute('x2', x0+(W-20-x0)*p)), 1900);
+    const cols=[C.slate,'#5b8fb3','#a5c4d8'];
+    BARS.forEach((b,i)=>{
+      const gi=Math.floor(i/3), mi=i%3;
+      const x = x0 + gi*groupW + 40 + mi*(bw+18);
+      const h = b.v*(base-top);
+      const path = el('path',{d:barPath(x,base,base,bw,4), fill:cols[mi]},g);
+      setTimeout(()=>tween(700, p=>path.setAttribute('d', barPath(x,base,base-h*p,bw,4))), 160*i);
+      const lab = txt(g, x+bw/2, base-h-26, (b.v*100).toFixed(1)+'%',
+        {'font-size':13, 'text-anchor':'middle', class:'num', 'font-weight':700, opacity:0});
+      const w1=base-b.lo*(base-top), w2=base-b.hi*(base-top);
+      const ci = el('g',{opacity:0},g);
+      el('line',{x1:x+bw/2,y1:w1,x2:x+bw/2,y2:w2,stroke:C.ink2,'stroke-width':1.6},ci);
+      el('line',{x1:x+bw/2-6,y1:w1,x2:x+bw/2+6,y2:w1,stroke:C.ink2,'stroke-width':1.6},ci);
+      el('line',{x1:x+bw/2-6,y1:w2,x2:x+bw/2+6,y2:w2,stroke:C.ink2,'stroke-width':1.6},ci);
+      setTimeout(()=>{ tween(400,p=>{lab.setAttribute('opacity',p); ci.setAttribute('opacity',p);}); }, 160*i+740);
+      const hit = el('rect',{x:x-8,y:top,width:bw+16,height:base-top,fill:'transparent'},g);
+      hit.addEventListener('mousemove', e=>{
+        const r=box.getBoundingClientRect();
+        tip.show(`${b.m} &middot; ${b.mode}<br><b>${b.x} / 21</b> drafts violated (${(b.v*100).toFixed(1)}%)<br>Wilson 95%: <b>${(b.lo*100).toFixed(1)} to ${(b.hi*100).toFixed(1)}%</b>`,
+          e.clientX-r.left, e.clientY-r.top);
+      });
+      hit.addEventListener('mouseleave', ()=>tip.hide());
+    });
+    ['Gemini 2.5 Flash','GPT-5 nano','Llama 3.3 70B'].forEach((m,gi)=>
+      txt(g, x0+gi*groupW+40+1.5*bw+18, H-26, m, {'font-size':14,'font-weight':600,'text-anchor':'middle'}));
+    txt(g, W-24, py-9, 'pooled 67.2%', {'font-size':12.5, fill:C.hot, 'text-anchor':'end', class:'num'});
+  }
+  onSeen(box, play); makeReplay(box, play);
+})();
+
+/* ============================================================ fig 4: profile x mode matrix */
+(function(){
+  const box = document.getElementById('anim-matrix');
+  const W=880, H=300, svg=svgIn(box, W, H, 660);
+  let g = el('g', {}, svg);
+  const modes=['direct','critique','sc'];
+  const names={direct:'direct',critique:'critique',sc:'self-consistency'};
+  const x0=190, y0=56, cw=(W-x0-24)/3, ch=64;
+  function play(){
+    g.remove(); g = el('g', {}, svg);
+    modes.forEach((m,j)=>
+      txt(g, x0+j*cw+cw/2, 34, names[m], {'font-size':14,'font-weight':600,'text-anchor':'middle'}));
+    MATRIX.forEach((row,i)=>{
+      txt(g, x0-16, y0+i*(ch+12)+ch/2+5, row.p, {'font-size':14.5,'font-weight':600,'text-anchor':'end'});
+      modes.forEach((m,j)=>{
+        const [v,n]=row[m];
+        const rate=v/n;
+        const a = rate===0 ? 0 : .1+rate*.74;
+        const cell=el('rect',{x:x0+j*cw+5,y:y0+i*(ch+12),width:cw-10,height:ch,rx:6,
+          fill: rate===0 ? '#dff0e8' : `rgba(179,0,107,${a.toFixed(3)})`,
+          stroke:C.line, opacity:0},g);
+        const lab=txt(g, x0+j*cw+cw/2, y0+i*(ch+12)+ch/2+6, `${v} / ${n}`,
+          {'font-size':16,'text-anchor':'middle',class:'num','font-weight':700,
+           fill: rate>.55?'#fff':C.ink2, opacity:0});
+        setTimeout(()=>{ tween(400,p=>{cell.setAttribute('opacity',p); lab.setAttribute('opacity',p);}); },
+          200*(i*3+j));
+      });
+    });
+    const note=txt(g, x0+1.5*cw, H-8, 'violating drafts out of 21 held-out scenarios, pooled over the three models',
+      {'font-size':12.5, fill:C.muted, 'text-anchor':'middle', opacity:0});
+    setTimeout(()=>tween(400,p=>note.setAttribute('opacity',p)), 2100);
+  }
+  onSeen(box, play); makeReplay(box, play);
+})();
+
+/* ============================================================ fig 5: tiny target */
+(function(){
+  const box = document.getElementById('anim-target');
+  const W=940, H=420, svg=svgIn(box, W, H, 720);
+  let g = el('g', {}, svg);
+  const R = {cx:700, cy:210, path:'M 640 160 C 690 130, 760 136, 790 182 C 818 224, 804 288, 752 310 C 700 332, 630 318, 608 268 C 588 224, 596 186, 640 160 Z'};
+  function play(){
+    g.remove(); g = el('g', {}, svg);
+    for (let i=0;i<130;i++){
+      const x = 30+rnd(i*3+1)*(W-60), y = 30+rnd(i*3+2)*(H-60);
+      if (Math.hypot(x-R.cx,y-R.cy) < 110) continue;
+      const d = el('circle',{cx:x,cy:y,r:3.4,fill:C.faint,opacity:0},g);
+      setTimeout(()=>tween(400,p=>d.setAttribute('opacity',.4*p)), rnd(i)*900);
+    }
+    const reg = el('path',{d:R.path, fill:'rgba(21,94,140,.13)', stroke:C.slate,'stroke-width':2, opacity:0},g);
+    setTimeout(()=>tween(600,p=>reg.setAttribute('opacity',p)), 1000);
+    const rl = txt(g, R.cx, R.cy+6, 'every cap satisfied', {'font-size':13, fill:C.slate, 'text-anchor':'middle', opacity:0});
+    setTimeout(()=>tween(400,p=>rl.setAttribute('opacity',p)), 1500);
+    [[300,120],[520,330],[180,260],[840,90]].forEach((pt,i)=>{
+      setTimeout(()=>{
+        const d=el('circle',{cx:pt[0],cy:pt[1]-40,r:7,fill:C.shelf,opacity:0},g);
+        tween(420,p=>{ d.setAttribute('opacity',p); d.setAttribute('cy', pt[1]-40+40*p); });
+        setTimeout(()=>{
+          const m=el('g',{opacity:0},g);
+          el('line',{x1:pt[0]+11,y1:pt[1]-11,x2:pt[0]+23,y2:pt[1]-23,stroke:C.hot,'stroke-width':2.6,'stroke-linecap':'round'},m);
+          el('line',{x1:pt[0]+23,y1:pt[1]-11,x2:pt[0]+11,y2:pt[1]-23,stroke:C.hot,'stroke-width':2.6,'stroke-linecap':'round'},m);
+          tween(300,p=>m.setAttribute('opacity',p));
+        },480);
+      }, 1900 + i*650);
+    });
+    const cap=txt(g, 30, H-14, 'four real drafts, four misses. Sampling K times multiplies chances, never certainty.',
+      {'font-size':13, fill:C.muted, opacity:0});
+    setTimeout(()=>tween(500,p=>cap.setAttribute('opacity',p)), 4400);
+  }
+  onSeen(box, play); makeReplay(box, play);
+})();
+
+/* ============================================================ fig 6: pipeline */
+(function(){
+  const box = document.getElementById('anim-pipeline');
+  const W=940, H=250, svg=svgIn(box, W, H, 720);
+  let g = el('g', {}, svg);
+  const nodes=[
+    {x:30,  w:190, t:'model proposes', s:'probabilistic', c:C.shelf},
+    {x:262, w:150, t:'schema gate', s:'JSON, retries', c:C.ink2},
+    {x:454, w:160, t:'validate caps', s:'deterministic', c:C.ink2},
+    {x:656, w:120, t:'project', s:'convex QP', c:C.slate},
+    {x:818, w:100, t:'act', s:'auditable', c:C.good},
+  ];
+  function play(){
+    g.remove(); g = el('g', {}, svg);
+    nodes.forEach((n,i)=>{
+      const grp=el('g',{opacity:0},g);
+      el('rect',{x:n.x,y:80,width:n.w,height:74,rx:10,fill:C.panel,stroke:n.c,'stroke-width':1.8},grp);
+      txt(grp, n.x+n.w/2, 112, n.t, {'font-size':15,'font-weight':600,'text-anchor':'middle'});
+      txt(grp, n.x+n.w/2, 136, n.s, {'font-size':12.5, fill:n.c, 'text-anchor':'middle', class:'num'});
+      setTimeout(()=>tween(420,p=>{grp.setAttribute('opacity',p);
+        grp.setAttribute('transform',`translate(0 ${18*(1-p)})`);}), 300*i);
+      if (i<nodes.length-1){
+        const x1=n.x+n.w, x2=nodes[i+1].x;
+        const ar=el('g',{opacity:0},g);
+        el('line',{x1:x1+6,y1:117,x2:x2-10,y2:117,stroke:C.line2,'stroke-width':2.4},ar);
+        el('path',{d:`M ${x2-16} 110 L ${x2-6} 117 L ${x2-16} 124`,fill:'none',stroke:C.line2,'stroke-width':2.4,'stroke-linecap':'round'},ar);
+        setTimeout(()=>tween(300,p=>ar.setAttribute('opacity',p)), 300*i+260);
+      }
+    });
+    const pass=txt(g, 534, 46, 'passes: through untouched (about 1 in 3)', {'font-size':12.5, fill:C.good, 'text-anchor':'middle', opacity:0});
+    const fail=txt(g, 534, 210, 'violates: repaired, then released (about 2 in 3)', {'font-size':12.5, fill:C.hot, 'text-anchor':'middle', opacity:0});
+    setTimeout(()=>tween(500,p=>{pass.setAttribute('opacity',p); fail.setAttribute('opacity',p);}), 1700);
+    const log=txt(g, W/2, 240, 'every run logs: draft, violations, repaired weights, and the distance D between them',
+      {'font-size':13, fill:C.muted, 'text-anchor':'middle', opacity:0});
+    setTimeout(()=>tween(500,p=>log.setAttribute('opacity',p)), 2200);
+  }
+  onSeen(box, play); makeReplay(box, play);
+})();
+
+/* ============================================================ fig 7: AF-032 repair */
+(function(){
+  const box = document.getElementById('anim-repair');
+  const W=940, H=360, svg=svgIn(box, W, H, 720);
+  let g = el('g', {}, svg);
+  const x0=40, base=H-70, top=54, bw=40, gap=(W-x0-30-16*bw)/15;
+  function play(){
+    g.remove(); g = el('g', {}, svg);
+    const hhi = txt(g, W-30, 40, 'HHI 1.00 / cap 0.18', {'font-size':17,'text-anchor':'end',class:'num','font-weight':700,fill:C.hot});
+    const dlab = txt(g, W-30, 64, '', {'font-size':13.5,'text-anchor':'end',class:'num',fill:C.muted});
+    const bars = TICK.map((t,i)=>{
+      const x = x0 + i*(bw+gap);
+      txt(g, x+bw/2, base+22, t, {'font-size':11, fill:C.muted, 'text-anchor':'middle', class:'num',
+        transform:`rotate(-45 ${x+bw/2} ${base+22})`});
+      return el('path',{d:barPath(x,base,base,bw,4), fill: t==='AGG'?C.hot:C.slate, opacity:t==='AGG'?.9:.55},g);
+    });
+    /* draw the 100% draft */
+    tween(800, p=>{
+      TICK.forEach((t,i)=>{
+        const h = AF032.w0[i]*(base-top)*p;
+        bars[i].setAttribute('d', barPath(x0+i*(bw+gap), base, base-h, bw, 4));
+      });
+    });
+    /* then melt to the repair */
+    setTimeout(()=>{
+      tween(1600, p=>{
+        TICK.forEach((t,i)=>{
+          const w = AF032.w0[i] + (AF032.w1[i]-AF032.w0[i])*p;
+          bars[i].setAttribute('d', barPath(x0+i*(bw+gap), base, base-w*(base-top), bw, 4));
+          if (t==='AGG') bars[i].setAttribute('fill', p>.6?C.slate:C.hot);
+        });
+        const h = 1 + (0.149-1)*p;
+        hhi.textContent = `HHI ${h.toFixed(2)} / cap 0.18`;
+        hhi.setAttribute('fill', h<=0.18?C.good:C.hot);
+        dlab.textContent = p>.5 ? 'D = 0.673, the largest repair in the study' : '';
+      });
+    }, 1700);
+    txt(g, x0, 36, 'GPT-5 nano, "default inertia", moderate profile', {'font-size':14, fill:C.muted});
+  }
+  onSeen(box, play); makeReplay(box, play);
+})();
+
+/* ============================================================ fig 8: scatter */
+(function(){
+  const box = document.getElementById('anim-scatter');
+  const W=560, H=560, svg=svgIn(box, W, H, 520);
+  const tip = tipFor(box);
+  let g = el('g', {}, svg);
+  const x0=70, y0=30, S=440;
+  function play(){
+    g.remove(); g = el('g', {}, svg);
+    el('rect',{x:x0,y:y0,width:S,height:S,fill:C.panel,stroke:C.line},g);
+    el('line',{x1:x0,y1:y0+S,x2:x0+S,y2:y0,stroke:C.line2,'stroke-width':1.6,'stroke-dasharray':'6 6'},g);
+    txt(g, x0+S/2, H-14, 'fund weight in the draft', {'font-size':13.5, fill:C.muted, 'text-anchor':'middle'});
+    const yl = txt(g, 20, y0+S/2, 'after repair', {'font-size':13.5, fill:C.muted, 'text-anchor':'middle'});
+    yl.setAttribute('transform', `rotate(-90 20 ${y0+S/2})`);
+    [0,.5,1].forEach(v=>{
+      txt(g, x0+v*S, y0+S+18, v.toFixed(1), {'font-size':12, fill:C.faint,'text-anchor':'middle',class:'num'});
+      txt(g, x0-8, y0+S-v*S+4, v.toFixed(1), {'font-size':12, fill:C.faint,'text-anchor':'end',class:'num'});
+    });
+    let k=0;
+    RUNS.filter(r=>r.mode==='direct').forEach(r=>{
+      r.w0.forEach((w,i)=>{
+        if (w<0.001 && r.w1[i]<0.001) return;
+        const cx=x0+w*S, cy=y0+S-r.w1[i]*S;
+        const d=el('circle',{cx,cy,r:4,fill:C.slate,opacity:0},g);
+        setTimeout(()=>tween(300,p=>d.setAttribute('opacity',.32*p)), (k%60)*30);
+        d.addEventListener('mousemove', e=>{
+          const b=box.getBoundingClientRect();
+          tip.show(`${r.id} &middot; ${TICK[i]}<br>draft <b>${(w*100).toFixed(1)}%</b> &rarr; repaired <b>${(r.w1[i]*100).toFixed(1)}%</b>`,
+            e.clientX-b.left, e.clientY-b.top);
+        });
+        d.addEventListener('mouseleave', ()=>tip.hide());
+        k++;
+      });
+    });
+  }
+  onSeen(box, play); makeReplay(box, play);
+})();
+
+/* ============================================================ widget: repair explorer */
+(function(){
+  const box = document.getElementById('widget-explorer');
+  const ctl = document.createElement('div'); ctl.className='ctl';
+  const mk=(label,opts)=>{
+    const l=document.createElement('label');
+    l.appendChild(document.createTextNode(label));
+    const s=document.createElement('select');
+    opts.forEach(o=>{const op=document.createElement('option'); op.value=o[0]; op.textContent=o[1]; s.appendChild(op);});
+    l.appendChild(s); ctl.appendChild(l); return s;
+  };
+  const selP = mk('profile', [['M','Moderate'],['C','Conservative'],['A','Aggressive']]);
+  const selB = mk('temptation', BIASES.map(b=>[b==='US-only'?'US-only bias':b, b]));
+  const selM = mk('model', [['gemini-2.5-flash','Gemini 2.5 Flash'],['gpt-5-nano','GPT-5 nano'],['Llama-3.3-70B-Instruct-Turbo','Llama 3.3 70B']]);
+  const selMo = mk('mode', [['direct','direct'],['critique','critique'],['sc','self-consistency']]);
+  box.appendChild(ctl);
+  const W=880, H=420, svg=svgIn(box, W, H, 660);
+  const note=document.createElement('div');
+  note.style.cssText='font:500 13.5px/1.5 var(--sans); color:var(--muted); margin-top:6px';
+  box.appendChild(note);
+  const NAMES={sigma:'volatility', fee:'fees', hhi:'concentration', asset:'one asset', sector:'one sector'};
+  function fmt(i,v){ return i===0 ? (v*100).toFixed(1)+'%' : i===1 ? (v*100).toFixed(2)+'%' : i===2 ? v.toFixed(3) : (v*100).toFixed(0)+'%'; }
+  let g = el('g', {}, svg);
+  function draw(){
+    g.remove(); g = el('g', {}, svg);
+    const cands = RUNS.filter(r=> r.p===selP.value && r.bias===selB.value && r.m===selM.value && r.mode===selMo.value);
+    if (!cands.length){
+      txt(g, W/2, H/2, 'No held-out test scenario for this exact combination. Try another temptation.',
+        {'font-size':15, fill:C.muted, 'text-anchor':'middle'});
+      note.textContent=''; return;
+    }
+    const r = cands[0];
+    const x0=30, base=250, top=44, bw=36, gap=(W-x0-20-16*bw)/15;
+    const maxW = Math.max(.3, ...r.w0, ...r.w1);
+    TICK.forEach((t,i)=>{
+      const x=x0+i*(bw+gap);
+      const h1=(r.w1[i]/maxW)*(base-top), h0=(r.w0[i]/maxW)*(base-top);
+      if (Math.abs(r.w0[i]-r.w1[i])>0.004)
+        el('rect',{x:x+1,y:base-h0,width:bw-2,height:Math.max(h0,1),rx:4,fill:'none',
+          stroke:C.shelf,'stroke-width':1.6,'stroke-dasharray':'4 4'},g);
+      const bar=el('path',{d:barPath(x,base,base,bw,4),fill:C.slate,opacity:.8},g);
+      tween(560,p=>bar.setAttribute('d',barPath(x,base,base-h1*p,bw,4)));
+      txt(g, x+bw/2, base+18, t, {'font-size':10.5, fill:C.muted,'text-anchor':'middle',class:'num',
+        transform:`rotate(-45 ${x+bw/2} ${base+18})`});
+    });
+    const labels=['sigma','fee','hhi','asset','sector'];
+    labels.forEach((k,i)=>{
+      const y=310+22*i - (i>2? 22*3-0:0);
+      const col = i>2 ? 470 : 30;
+      const yy = 310 + 22*(i%3);
+      const cap=r.caps[i], b=r.b[i], a=r.a[i];
+      const okB = b<=cap+1e-9, okA = a<=cap+1e-9;
+      txt(g, col, yy, NAMES[k], {'font-size':13.5,'font-weight':600});
+      txt(g, col+128, yy, fmt(i,b), {'font-size':13.5, class:'num', fill: okB?C.good:C.hot});
+      txt(g, col+208, yy, '→', {'font-size':13.5, fill:C.faint});
+      txt(g, col+238, yy, fmt(i,a), {'font-size':13.5, class:'num', 'font-weight':700, fill: okA?C.good:C.hot});
+      txt(g, col+318, yy, 'cap '+fmt(i,cap), {'font-size':12.5, class:'num', fill:C.muted});
+    });
+    txt(g, W-30, 330, 'D = '+r.D.toFixed(3), {'font-size':22,'text-anchor':'end',class:'num','font-weight':700,
+      fill: r.D<0.05?C.good:(r.D>0.3?C.hot:C.slate)});
+    txt(g, W-30, 352, r.D===0?'already feasible, untouched':(r.D<0.1?'a light nudge':'a forced rebalance'),
+      {'font-size':12.5,'text-anchor':'end',fill:C.muted});
+    note.textContent = `Scenario ${r.id}: ${selB.value} pressure on a ${selP.selectedOptions[0].text.toLowerCase()} client, answered by ${selM.selectedOptions[0].text} in ${selMo.selectedOptions[0].text} mode. ${cands.length>1 ? cands.length+' matching runs; showing the first.' : ''}`;
+  }
+  [selP,selB,selM,selMo].forEach(s=>s.addEventListener('change', draw));
+  onSeen(box, draw); makeReplay(box, draw);
+})();
+
+/* ============================================================ widget: 2D projection toy */
+(function(){
+  const box = document.getElementById('widget-project');
+  const W=880, H=430, svg=svgIn(box, W, H, 640);
+  /* convex polygon */
+  const P=[[430,120],[590,170],[640,290],[520,370],[360,340],[310,220]];
+  const cx=470, cy=250;
+  el('path',{d:'M'+P.map(p=>p.join(',')).join(' L ')+' Z', fill:'rgba(21,94,140,.13)', stroke:C.slate,'stroke-width':2},svg);
+  txt(svg, cx, cy+6, 'feasible', {'font-size':13, fill:C.slate, 'text-anchor':'middle'});
+  const seg=el('line',{stroke:C.ink2,'stroke-width':1.8,'stroke-dasharray':'7 6'},svg);
+  const proj=el('circle',{r:9,fill:C.slate},svg);
+  const draft=el('circle',{r:9,fill:C.shelf},svg);
+  const dl=txt(svg, 0,0,'draft',{'font-size':12.5, fill:C.shelf});
+  const pl=txt(svg, 0,0,'projection',{'font-size':12.5, fill:C.slate});
+  const dd=txt(svg, 24, 36, '', {'font-size':15, class:'num', 'font-weight':700});
+  function inside(x,y){
+    for (let i=0;i<P.length;i++){
+      const [x1,y1]=P[i],[x2,y2]=P[(i+1)%P.length];
+      if ((x2-x1)*(y-y1)-(y2-y1)*(x-x1) < 0) return false;
+    }
+    return true;
+  }
+  function nearest(x,y){
+    if (inside(x,y)) return [x,y];
+    let best=null, bd=1e9;
+    for (let i=0;i<P.length;i++){
+      const [x1,y1]=P[i],[x2,y2]=P[(i+1)%P.length];
+      const dx=x2-x1, dy=y2-y1;
+      const t=Math.max(0,Math.min(1,((x-x1)*dx+(y-y1)*dy)/(dx*dx+dy*dy)));
+      const px=x1+t*dx, py=y1+t*dy, d=Math.hypot(x-px,y-py);
+      if (d<bd){ bd=d; best=[px,py]; }
+    }
+    return best;
+  }
+  const ctl=document.createElement('div'); ctl.className='ctl';
+  const lab=document.createElement('label');
+  lab.appendChild(document.createTextNode('move the draft'));
+  const slider=document.createElement('input');
+  slider.type='range'; slider.min=0; slider.max=1000; slider.value=80;
+  lab.appendChild(slider); ctl.appendChild(lab);
+  box.insertBefore(ctl, box.firstChild);
+  function update(){
+    const a = (slider.value/1000)*Math.PI*2;
+    const rr = 195 + 55*Math.sin(3*a+1.2);
+    const x = cx + rr*Math.cos(a), y = cy + rr*Math.sin(a)*0.72;
+    const [px,py]=nearest(x,y);
+    draft.setAttribute('cx',x); draft.setAttribute('cy',y);
+    proj.setAttribute('cx',px); proj.setAttribute('cy',py);
+    seg.setAttribute('x1',x); seg.setAttribute('y1',y);
+    seg.setAttribute('x2',px); seg.setAttribute('y2',py);
+    dl.setAttribute('x',x+14); dl.setAttribute('y',y+4);
+    pl.setAttribute('x',px+14); pl.setAttribute('y',py+18);
+    const D=Math.hypot(x-px,y-py);
+    dd.textContent = D<0.5 ? 'D = 0: the draft is feasible; nothing changes' : 'D = '+(D/300).toFixed(3);
+    dd.setAttribute('fill', D<0.5 ? C.good : C.ink2);
+  }
+  slider.addEventListener('input', update);
+  update();
+  onSeen(box, ()=>{
+    if (REDUCED) return;
+    let v=80; const id=setInterval(()=>{ v+=6; slider.value=v%1000; update(); if(v>560) clearInterval(id); }, 24);
+  });
+})();
+
+/* ============================================================ film facade */
+(function(){
+  const f = document.getElementById('filmframe');
+  f.addEventListener('click', ()=>{
+    if (f.classList.contains('live')) return;
+    f.classList.add('live');
+    f.innerHTML = '';
+    const v = document.createElement('video');
+    v.src = 'assets/film.mp4'; v.controls = true; v.autoplay = true;
+    v.poster = 'assets/poster.jpg';
+    f.appendChild(v);
+  }, {once:false});
+})();
+</script>
+</body>
+</html>
